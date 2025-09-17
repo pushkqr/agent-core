@@ -8,6 +8,7 @@ from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import TextMessage
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 import utils
+import json
 
 load_dotenv(override=True)
 
@@ -39,28 +40,46 @@ class Creator(RoutedAgent):
         self._delegate = AssistantAgent(name, model_client=model_client)
         logger.debug("Delegate AssistantAgent initialized")
 
-    def get_user_prompt(self): 
-        logger.debug("Building user prompt for Calculator Agent generation")
+    def get_user_prompt(self, description: str, system_message: str):
+        logger.debug("Building user prompt for Agent generation")
         prompt = (
-            "Please generate a new Calculator Agent based strictly on this template. "
-            "The class must still be named Agent, inherit from RoutedAgent, and have an __init__ "
-            "method that takes a name parameter. The agent should be able to evaluate basic math "
-            "expressions like 'Add 3 + 5'. Respond only with the python code, no extra text, "
-            "and no markdown code blocks.\n\nHere is the template:\n\n"
+            f"Please generate a new Agent based on this template. "
+            f"The class must still be named Agent, inherit from RoutedAgent, and have an __init__ "
+            f"method that takes a name parameter. The agent should reflect the following description:\n"
+            f"{description}\n\n"
+            f"Here is the required system message:\n{system_message}\n\n"
+            f"Respond only with valid Python code, no explanations or markdown fences.\n\n"
+            "Here is the template:\n\n"
         )
-        with open("agent.py", "r", encoding="utf-8") as f: 
-            template = f.read() 
+        with open("agent.py", "r", encoding="utf-8") as f:
+            template = f.read()
         return prompt + template
+
 
     @message_handler
     async def handle_message(self, message: utils.Message, ctx: MessageContext) -> utils.Message:
         logger.info(f"Creator received message: {message.content}")
-        filename = message.content
-        agent_name = filename.split(".")[0]
+        try:
+            spec = json.loads(message.content)
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid spec JSON: {e}")
+            return utils.Message(content=f"Error: invalid spec JSON - {e}")
 
-        text_message = TextMessage(content=self.get_user_prompt(), source="user")
+        filename = spec.get("filename", "agents/new_agent.py")
+        agent_name = spec.get("agent_name", os.path.splitext(os.path.basename(filename))[0])
+        module_path = f"agents.{agent_name}"
+        description = spec.get("description", "An AI agent.")
+        system_message = spec.get("system_message", "You are an AI agent.")
+
+        text_message = TextMessage(
+            content=self.get_user_prompt(description, system_message),
+            source="user"
+        )
+
         logger.debug(f"Sending prompt to delegate:\n{text_message.content[:300]}...")
+
         response = await self._delegate.on_messages([text_message], ctx.cancellation_token)
+
         logger.debug(f"Received response from delegate:\n{response.chat_message.content[:300]}...")
 
         generated_code = response.chat_message.content
@@ -76,15 +95,17 @@ class Creator(RoutedAgent):
             logger.error(f"Generated code has syntax errors: {e}")
             return utils.Message(content=f"Syntax error in generated code: {e}")
 
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+
         with open(filename, "w", encoding="utf-8") as f:
             f.write(generated_code)
         logger.info(f"Saved generated agent code to {filename}")
 
 
-        if agent_name in sys.modules:
+        if module_path in sys.modules:
             logger.debug(f"Reloading existing module {agent_name}")
-            importlib.reload(sys.modules[agent_name])
-        module = importlib.import_module(agent_name)
+            importlib.reload(sys.modules[module_path])
+        module = importlib.import_module(module_path)
 
         await module.Agent.register(self.runtime, agent_name, lambda: module.Agent(agent_name))
         logger.info(f"Agent {agent_name} registered and live")
