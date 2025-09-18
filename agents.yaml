@@ -1,0 +1,7 @@
+agents:
+  - filename: agents/calculator_agent.py
+    agent_name: calculator_agent
+    description: "An agent that evaluates basic arithmetic expressions like 'Add 3 + 5'."
+    system_message: "You are a calculator agent. You can evaluate basic math expressions."
+    test_message: "Multiply 6 * 7"
+

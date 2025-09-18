@@ -4,19 +4,14 @@ from autogen_ext.runtimes.grpc import GrpcWorkerAgentRuntimeHost, GrpcWorkerAgen
 from autogen_core import AgentId
 from creator import Creator
 import logging
-import json
+from utils import setup_logging
+import yaml
 
-logging.basicConfig(level=logging.DEBUG)
+setup_logging(logging.DEBUG)
 logger = logging.getLogger("main")
 
 
 async def main():
-    spec = {
-        "filename": "agents/calculator_agent.py",
-        "agent_name": "calculator_agent",
-        "description": "An agent that evaluates basic arithmetic expressions like 'Add 3 + 5'.",
-        "system_message": "You are a calculator agent. You can evaluate basic math expressions."
-    }
 
     logger.info("Starting host and worker")
     host = GrpcWorkerAgentRuntimeHost(address="localhost:50051")
@@ -30,10 +25,15 @@ async def main():
         await Creator.register(worker, "Creator", lambda: Creator("Creator"))
         creator_id = AgentId("Creator", "default")
 
+        with open("agents.yaml", "r") as f:
+            spec = yaml.safe_load(f)
+
+        content = yaml.safe_dump(spec)
+
         await asyncio.sleep(1)
 
         logger.info("Sending message to Creator to generate Calculator Agent")
-        await worker.send_message(utils.Message(content=json.dumps(spec)), creator_id)
+        await worker.send_message(utils.Message(content=content), creator_id)
 
         await asyncio.sleep(5)
 
