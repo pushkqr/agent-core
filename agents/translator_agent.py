@@ -9,11 +9,11 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 class Agent(RoutedAgent):
-    async def __init__(self, name, system_message) -> None:
+    def __init__(self, name) -> None:
         super().__init__(name)
-        prompt = system_message
+        system_message = "You are a translator agent. Translate text from English to Spanish only."
         model_client = OpenAIChatCompletionClient(model=utils.MODEL_NAME, model_info=utils.GEMINI_INFO, api_key=os.getenv("GOOGLE_API_KEY"))
-        self._delegate = AssistantAgent(name, model_client=model_client, system_message=prompt)
+        self._delegate = AssistantAgent(name, model_client=model_client, system_message=system_message)
 
     @message_handler
     async def handle_message(self, message: utils.Message, ctx: MessageContext) -> utils.Message:
@@ -21,4 +21,3 @@ class Agent(RoutedAgent):
         text_message = TextMessage(content=message.content, source="user")
         response = await self._delegate.on_messages([text_message], ctx.cancellation_token)
         return utils.Message(content=response.chat_message.content)
-        

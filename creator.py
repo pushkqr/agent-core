@@ -10,6 +10,7 @@ from autogen_ext.models.openai import OpenAIChatCompletionClient
 import utils
 from utils import setup_logging
 import yaml
+import re
 
 load_dotenv(override=True)
 
@@ -40,7 +41,12 @@ class Creator(RoutedAgent):
         self._delegate = AssistantAgent(name, model_client=model_client)
         logger.debug("Delegate AssistantAgent initialized")
 
-    def get_user_prompt(self, description: str, system_message: str):
+    def get_generation_prompt(self, description: str, system_message: str, spec: dict):
+        if "tools" in spec and spec["tools"]:
+            template_file = "agent_with_tools.py"
+        else:
+            template_file = "agent.py"
+
         logger.debug("Building user prompt for Agent generation")
         prompt = (
             f"Please generate a new Agent based on this template. "
@@ -51,7 +57,7 @@ class Creator(RoutedAgent):
             f"Respond only with valid Python code, no explanations or markdown fences.\n\n"
             "Here is the template:\n\n"
         )
-        with open("agent.py", "r", encoding="utf-8") as f:
+        with open(template_file, "r", encoding="utf-8") as f:
             template = f.read()
         return prompt + template
 
@@ -85,7 +91,7 @@ class Creator(RoutedAgent):
             system_message = spec.get("system_message", "You are an AI agent.")
 
             text_message = TextMessage(
-                content=self.get_user_prompt(description, system_message),
+                content=self.get_generation_prompt(description, system_message, spec),
                 source="user"
             )
 
