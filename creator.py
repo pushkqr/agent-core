@@ -60,102 +60,106 @@ class Creator(RoutedAgent):
         response_parts = []
         registered_agents = {}
 
-        for i, spec in enumerate(agents): 
-            errors = Creator.validate_agent_spec(spec)
-            if errors:
-                all_errors.append(f"Agent {i} ({spec.get('agent_name', 'unknown')}):\n" + "\n".join(errors))
-                continue
-            
-            filename = spec.get("filename", "agents/new_agent.py")
-            agent_name = spec.get("agent_name", os.path.splitext(os.path.basename(filename))[0])
-            module_path = f"agents.{agent_name}"
-            description = spec.get("description", "An AI agent.")
-            system_message = spec.get("system_message", "You are an AI agent.")
+        workflow_error = Creator.validate_workflow(agents)
 
-            if "tools" in spec and spec["tools"]:
-                template_file = "templates/agent_with_tools.py"
-            else:
-                template_file = "templates/agent.py"
-
-
-            if os.path.exists(filename) and not self.should_regenerate(filename, template_file):
-                logger.info(f"Agent file {filename} already exists, skipping generation")
-            else:
-                text_message = TextMessage(
-                    content=self.get_generation_prompt(description, system_message, spec, template_file),
-                    source="user"
-                )
-
-                logger.debug(f"Sending prompt to delegate:\n{text_message.content[:300]}...")
-
-                response = await self._delegate.on_messages([text_message], ctx.cancellation_token)
-
-                logger.debug(f"Received response from delegate:\n{response.chat_message.content[:300]}...")
-
-                generated_code = response.chat_message.content
-
-                for marker in ["TERMINATE", "END", "END OF CODE", "```python", "```"]:
-                    generated_code = generated_code.replace(marker, "")
-
-                generated_code = generated_code.strip()
-                
-                try:
-                    compile(generated_code, filename, 'exec')
-                except SyntaxError as e:
-                    logger.error(f"Generated code has syntax errors: {e}")
-                    return utils.Message(content=f"Syntax error in generated code: {e}")
-
-                os.makedirs(os.path.dirname(filename), exist_ok=True)
-
-                with open(filename, "w", encoding="utf-8") as f:
-                    f.write(generated_code)
-                logger.info(f"Saved generated agent code to {filename}")
-
-            try:
-                if module_path in sys.modules:
-                    importlib.reload(sys.modules[module_path])
-                module = importlib.import_module(module_path)
-            except Exception as e:
-                logger.error(f"Failed to import/reload module {module_path}: {e}")
-                return utils.Message(content=f"Error importing {agent_name}: {e}")
-
-            try:
-                if "tools" in spec and spec["tools"]:
-                    tools_specs = spec.get("tools", [])
-                    creator_func = lambda: module.Agent(agent_name, system_message, tools_specs)
-                else:
-                    creator_func = lambda: module.Agent(agent_name, system_message)
-                
-                await module.Agent.register(self.runtime, agent_name, creator_func)
-                logger.info(f"Agent {agent_name} registered")
-                
-                if await self.health_check_agent(agent_name):
-                    logger.info(f"✅ {agent_name} is healthy and ready")
-                else:
-                    logger.error(f"❌ {agent_name} failed health check")
-                    all_errors.append(f"{agent_name}: Failed health check")
+        if not workflow_error:
+            for i, spec in enumerate(agents): 
+                errors = Creator.validate_agent_spec(spec)
+                if errors:
+                    all_errors.append(f"Agent {i} ({spec.get('agent_name', 'unknown')}):\n" + "\n".join(errors))
                     continue
                 
-            except Exception as e:
-                logger.error(f"Failed to register agent {agent_name}: {e}")
-                all_errors.append(f"{agent_name}: Failed to register -> {e}")
-                continue
-            
-            registered_agents[agent_name] = spec
-        
-        for spec in agents:
-            agent_name = spec.get("agent_name")
+                filename = spec.get("filename", "agents/new_agent.py")
+                agent_name = spec.get("agent_name", os.path.splitext(os.path.basename(filename))[0])
+                module_path = f"agents.{agent_name}"
+                description = spec.get("description", "An AI agent.")
+                system_message = spec.get("system_message", "You are an AI agent.")
 
-            if(spec.get("test_message")):
-                test_message = utils.Message(content=spec.get("test_message"))
-                result = await self.send_message(test_message, AgentId(agent_name, "default"))
-                results.append(f"{agent_name}: {result.content}")
+                if "tools" in spec and spec["tools"]:
+                    template_file = "templates/agent_with_tools.py"
+                else:
+                    template_file = "templates/agent.py"
 
-                if(spec.get("output_to")) and result.content:
-                    test_message = utils.Message(content=result.content)
-                    fwd_result = await self.send_message(test_message, AgentId(spec.get("output_to"), "default"))
-                    results.append(f"{agent_name}: {fwd_result.content}")
+
+                if os.path.exists(filename) and not self.should_regenerate(filename, template_file):
+                    logger.info(f"Agent file {filename} already exists, skipping generation")
+                else:
+                    text_message = TextMessage(
+                        content=self.get_generation_prompt(description, system_message, spec, template_file),
+                        source="user"
+                    )
+
+                    logger.debug(f"Sending prompt to delegate:\n{text_message.content[:300]}...")
+
+                    response = await self._delegate.on_messages([text_message], ctx.cancellation_token)
+
+                    logger.debug(f"Received response from delegate:\n{response.chat_message.content[:300]}...")
+
+                    generated_code = response.chat_message.content
+
+                    for marker in ["TERMINATE", "END", "END OF CODE", "```python", "```"]:
+                        generated_code = generated_code.replace(marker, "")
+
+                    generated_code = generated_code.strip()
+                    
+                    try:
+                        compile(generated_code, filename, 'exec')
+                    except SyntaxError as e:
+                        logger.error(f"Generated code has syntax errors: {e}")
+                        return utils.Message(content=f"Syntax error in generated code: {e}")
+
+                    os.makedirs(os.path.dirname(filename), exist_ok=True)
+
+                    with open(filename, "w", encoding="utf-8") as f:
+                        f.write(generated_code)
+                    logger.info(f"Saved generated agent code to {filename}")
+
+                try:
+                    if module_path in sys.modules:
+                        importlib.reload(sys.modules[module_path])
+                    module = importlib.import_module(module_path)
+                except Exception as e:
+                    logger.error(f"Failed to import/reload module {module_path}: {e}")
+                    return utils.Message(content=f"Error importing {agent_name}: {e}")
+
+                try:
+                    if "tools" in spec and spec["tools"]:
+                        tools_specs = spec.get("tools", [])
+                        creator_func = lambda: module.Agent(agent_name, system_message, tools_specs)
+                    else:
+                        creator_func = lambda: module.Agent(agent_name, system_message)
+                    
+                    await module.Agent.register(self.runtime, agent_name, creator_func)
+                    logger.info(f"Agent {agent_name} registered")
+                    
+                    if await self.health_check_agent(agent_name):
+                        logger.info(f"✅ {agent_name} is healthy and ready")
+                    else:
+                        logger.error(f"❌ {agent_name} failed health check")
+                        all_errors.append(f"{agent_name}: Failed health check")
+                        continue
+                    
+                except Exception as e:
+                    logger.error(f"Failed to register agent {agent_name}: {e}")
+                    all_errors.append(f"{agent_name}: Failed to register -> {e}")
+                    continue
                 
+                registered_agents[agent_name] = spec
+            
+            for spec in agents:
+                agent_name = spec.get("agent_name")
+
+                if(spec.get("test_message")):
+                    test_message = utils.Message(content=spec.get("test_message"))
+                    result = await self.send_message(test_message, AgentId(agent_name, "default"))
+                    results.append(f"{agent_name}: {result.content}")
+
+                    if(spec.get("output_to")) and result.content:
+                        test_message = utils.Message(content=result.content)
+                        fwd_result = await self.send_message(test_message, AgentId(spec.get("output_to"), "default"))
+                        results.append(f"{agent_name}: {fwd_result.content}")
+        else:
+            all_errors.append(workflow_error)           
 
         
         if results:
@@ -176,6 +180,22 @@ class Creator(RoutedAgent):
                 errors.append(f"Missing required field: {field}")
 
         return errors
+    
+    @staticmethod
+    def validate_workflow(agents):
+        errors = []
+
+        agent_names = [spec.get("agent_name") for spec in agents]
+
+        for spec in agents:
+            output_to = spec.get("output_to")
+
+            if output_to and output_to not in agent_names:
+                errors.append(f"Agent {spec.get('agent_name')} references non-existent agent: {output_to}")
+        
+        return errors
+    
+
     
     def get_template_version(self, template_file):
         with open(template_file, "r") as f:
