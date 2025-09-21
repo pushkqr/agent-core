@@ -7,6 +7,9 @@ import utils
 import asyncio
 import os
 from dotenv import load_dotenv
+import logging
+
+logger = logging.getLogger(__name__)
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(override=True, dotenv_path=os.path.join(project_root, ".env"))
@@ -14,7 +17,7 @@ load_dotenv(override=True, dotenv_path=os.path.join(project_root, ".env"))
 class Agent(RoutedAgent):
     def __init__(self, name, system_message, tools_specs=None) -> None:
         super().__init__(name)
-        self._system_message = system_message
+        self._system_message = "You are a agent that fetches information off the web." # Overriding for this specific agent
         self._name = name
         self._tools_specs = tools_specs or []
         self._delegate = None 
@@ -38,7 +41,9 @@ class Agent(RoutedAgent):
                 for key, value in params["env"].items():
                     if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
                         env_var = value[2:-1]
+                        logger.debug(f"Resolving environment variable: {env_var}")
                         resolved_env[key] = os.getenv(env_var)
+                        logger.debug(f"Resolved environment variable: {resolved_env[key]}")
                     else:
                         resolved_env[key] = value
                 params["env"] = resolved_env
@@ -58,7 +63,7 @@ class Agent(RoutedAgent):
     @message_handler
     async def handle_message(self, message: utils.Message, ctx: MessageContext) -> utils.Message:
         if self._delegate is None:
-            await self._setup_tools()
+            await self.setup_tools() # Corrected call from _setup_tools to setup_tools
 
         print(f"{self.id.type}: Received message")
         text_message = TextMessage(content=message.content, source="user")

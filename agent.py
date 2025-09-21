@@ -6,7 +6,8 @@ import utils
 import os
 from dotenv import load_dotenv
 
-load_dotenv(override=True)
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(override=True, dotenv_path=os.path.join(project_root, ".env"))
 
 class Agent(RoutedAgent):
     async def __init__(self, name, system_message) -> None:

@@ -10,7 +10,7 @@ from autogen_ext.models.openai import OpenAIChatCompletionClient
 import utils
 from utils import setup_logging
 import yaml
-import re
+from prompts import Prompts
 
 load_dotenv(override=True)
 
@@ -20,15 +20,7 @@ logger = logging.getLogger("main")
 
 
 class Creator(RoutedAgent):
-    system_message = """ 
-    You are an Agent that is able to create new AI Agents.
-    You receive a template in the form of Python code that creates an Agent using Autogen Core and Autogen Agentchat.
-    You should use this template to create a new Agent with a unique system message that is different from the template, and reflects their unique characteristics, interests and goals. 
-    The requirement is that the class must be named Agent, and it must inherit from RoutedAgent and have an __init__ method that takes a name parameter. 
-    Respond ONLY with valid Python code. 
-    Do NOT include any extra markers, TERMINATE statements, explanations, or Markdown fences. 
-    The code must be directly executable and importable.
-    """
+    system_message = Prompts.get_creator_system_message()
 
     def __init__(self, name) -> None:
         super().__init__(name)
@@ -48,15 +40,8 @@ class Creator(RoutedAgent):
             template_file = "agent.py"
 
         logger.debug("Building user prompt for Agent generation")
-        prompt = (
-            f"Please generate a new Agent based on this template. "
-            f"The class must still be named Agent, inherit from RoutedAgent, and have an __init__ "
-            f"method that takes a name parameter. The agent should reflect the following description:\n"
-            f"{description}\n\n"
-            f"Here is the required system message:\n{system_message}\n\n"
-            f"Respond only with valid Python code, no explanations or markdown fences.\n\n"
-            "Here is the template:\n\n"
-        )
+        prompt = Prompts.get_creator_prompt(description, system_message)
+
         with open(template_file, "r", encoding="utf-8") as f:
             template = f.read()
         return prompt + template
@@ -90,36 +75,39 @@ class Creator(RoutedAgent):
             description = spec.get("description", "An AI agent.")
             system_message = spec.get("system_message", "You are an AI agent.")
 
-            text_message = TextMessage(
-                content=self.get_generation_prompt(description, system_message, spec),
-                source="user"
-            )
 
-            logger.debug(f"Sending prompt to delegate:\n{text_message.content[:300]}...")
+            if os.path.exists(filename):
+                logger.info(f"Agent file {filename} already exists, skipping generation")
+            else:
+                text_message = TextMessage(
+                    content=self.get_generation_prompt(description, system_message, spec),
+                    source="user"
+                )
 
-            response = await self._delegate.on_messages([text_message], ctx.cancellation_token)
+                logger.debug(f"Sending prompt to delegate:\n{text_message.content[:300]}...")
 
-            logger.debug(f"Received response from delegate:\n{response.chat_message.content[:300]}...")
+                response = await self._delegate.on_messages([text_message], ctx.cancellation_token)
 
-            generated_code = response.chat_message.content
+                logger.debug(f"Received response from delegate:\n{response.chat_message.content[:300]}...")
 
-            for marker in ["TERMINATE", "END", "END OF CODE", "```python", "```"]:
-                generated_code = generated_code.replace(marker, "")
+                generated_code = response.chat_message.content
 
-            generated_code = generated_code.strip()
-            
-            try:
-                compile(generated_code, filename, 'exec')
-            except SyntaxError as e:
-                logger.error(f"Generated code has syntax errors: {e}")
-                return utils.Message(content=f"Syntax error in generated code: {e}")
+                for marker in ["TERMINATE", "END", "END OF CODE", "```python", "```"]:
+                    generated_code = generated_code.replace(marker, "")
 
-            os.makedirs(os.path.dirname(filename), exist_ok=True)
+                generated_code = generated_code.strip()
+                
+                try:
+                    compile(generated_code, filename, 'exec')
+                except SyntaxError as e:
+                    logger.error(f"Generated code has syntax errors: {e}")
+                    return utils.Message(content=f"Syntax error in generated code: {e}")
 
-            with open(filename, "w", encoding="utf-8") as f:
-                f.write(generated_code)
-            logger.info(f"Saved generated agent code to {filename}")
+                os.makedirs(os.path.dirname(filename), exist_ok=True)
 
+                with open(filename, "w", encoding="utf-8") as f:
+                    f.write(generated_code)
+                logger.info(f"Saved generated agent code to {filename}")
 
             try:
                 if module_path in sys.modules:
@@ -130,7 +118,13 @@ class Creator(RoutedAgent):
                 return utils.Message(content=f"Error importing {agent_name}: {e}")
 
             try:
-                await module.Agent.register(self.runtime, agent_name, lambda: module.Agent(agent_name))
+                if "tools" in spec and spec["tools"]:
+                    tools_specs = spec.get("tools", [])
+                    creator_func = lambda: module.Agent(agent_name, system_message, tools_specs)
+                else:
+                    creator_func = lambda: module.Agent(agent_name, system_message)
+                
+                await module.Agent.register(self.runtime, agent_name, creator_func)
                 logger.info(f"Agent {agent_name} registered and live")
             except Exception as e:
                 logger.error(f"Failed to register agent {agent_name}: {e}")

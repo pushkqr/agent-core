@@ -15,14 +15,13 @@ class ColorFormatter(logging.Formatter):
         "CRITICAL": "\033[95m",
     }
     RESET = "\033[0m"
-    MAX_LEN = 150
+    
 
     def format(self, record):
         color = self.COLORS.get(record.levelname, "")
         prefix = f"[{record.levelname}]"
         msg = super().format(record)
-        if len(msg) > self.MAX_LEN:
-            msg = msg[:self.MAX_LEN] + "…"
+        
         return f"{color}{prefix}{self.RESET} {msg}"
     
 def setup_logging(level=logging.INFO):
@@ -38,4 +37,4 @@ GEMINI_INFO = ModelInfo(
     structured_output=True
 )
 
-MODEL_NAME = "gemini-2.5-flash-lite"
+MODEL_NAME = "gemini-2.5-flash"
