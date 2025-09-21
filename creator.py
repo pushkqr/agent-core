@@ -72,9 +72,9 @@ class Creator(RoutedAgent):
             system_message = spec.get("system_message", "You are an AI agent.")
 
             if "tools" in spec and spec["tools"]:
-                template_file = "agent_with_tools.py"
+                template_file = "templates/agent_with_tools.py"
             else:
-                template_file = "agent.py"
+                template_file = "templates/agent.py"
 
 
             if os.path.exists(filename) and not self.should_regenerate(filename, template_file):
