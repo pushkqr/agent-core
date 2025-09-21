@@ -10,6 +10,7 @@ from autogen_ext.models.openai import OpenAIChatCompletionClient
 import utils
 from utils import setup_logging
 import yaml
+import re
 from prompts import Prompts
 
 load_dotenv(override=True)
@@ -33,12 +34,7 @@ class Creator(RoutedAgent):
         self._delegate = AssistantAgent(name, model_client=model_client)
         logger.debug("Delegate AssistantAgent initialized")
 
-    def get_generation_prompt(self, description: str, system_message: str, spec: dict):
-        if "tools" in spec and spec["tools"]:
-            template_file = "agent_with_tools.py"
-        else:
-            template_file = "agent.py"
-
+    def get_generation_prompt(self, description: str, system_message: str, spec: dict, template_file: str):
         logger.debug("Building user prompt for Agent generation")
         prompt = Prompts.get_creator_prompt(description, system_message)
 
@@ -75,12 +71,17 @@ class Creator(RoutedAgent):
             description = spec.get("description", "An AI agent.")
             system_message = spec.get("system_message", "You are an AI agent.")
 
+            if "tools" in spec and spec["tools"]:
+                template_file = "agent_with_tools.py"
+            else:
+                template_file = "agent.py"
 
-            if os.path.exists(filename):
+
+            if os.path.exists(filename) and not self.should_regenerate(filename, template_file):
                 logger.info(f"Agent file {filename} already exists, skipping generation")
             else:
                 text_message = TextMessage(
-                    content=self.get_generation_prompt(description, system_message, spec),
+                    content=self.get_generation_prompt(description, system_message, spec, template_file),
                     source="user"
                 )
 
@@ -157,4 +158,24 @@ class Creator(RoutedAgent):
                 errors.append(f"Missing required field: {field}")
 
         return errors
+    
+    def get_template_version(self, template_file):
+        with open(template_file, "r") as f:
+            content = f.read()
+           
+            match = re.search(r'TEMPLATE_VERSION = "([^"]+)"', content)
+            return match.group(1) if match else "unknown"
+        
+    def should_regenerate(self, filename, template_file):
+        if not os.path.exists(filename):
+            return True
+        
+        with open(filename, "r") as f:
+            existing_content = f.read()
+            existing_version = re.search(r'TEMPLATE_VERSION = "([^"]+)"', existing_content)
+            existing_version = existing_version.group(1) if existing_version else "unknown"
+
+        current_version = self.get_template_version(template_file)
+        return existing_version != current_version
+
 

@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(override=True, dotenv_path=os.path.join(project_root, ".env"))
 
+TEMPLATE_VERSION = "1.0.0"
 class Agent(RoutedAgent):
     async def __init__(self, name, system_message) -> None:
         super().__init__(name)
