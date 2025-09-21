@@ -23,4 +23,3 @@ class Agent(RoutedAgent):
         text_message = TextMessage(content=message.content, source="user")
         response = await self._delegate.on_messages([text_message], ctx.cancellation_token)
         return utils.Message(content=response.chat_message.content)
-        

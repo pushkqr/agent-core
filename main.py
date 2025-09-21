@@ -32,7 +32,7 @@ async def main():
 
         await asyncio.sleep(1)
 
-        logger.info("Sending message to Creator to generate Calculator Agent")
+        logger.info("Sending message to Creator")
         await worker.send_message(utils.Message(content=content), creator_id)
 
         await asyncio.sleep(5)

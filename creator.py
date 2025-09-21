@@ -58,6 +58,7 @@ class Creator(RoutedAgent):
         all_errors = []
         results = []
         response_parts = []
+        registered_agents = {}
 
         for i, spec in enumerate(agents): 
             errors = Creator.validate_agent_spec(spec)
@@ -139,13 +140,22 @@ class Creator(RoutedAgent):
                 logger.error(f"Failed to register agent {agent_name}: {e}")
                 all_errors.append(f"{agent_name}: Failed to register -> {e}")
                 continue
+            
+            registered_agents[agent_name] = spec
+        
+        for spec in agents:
+            agent_name = spec.get("agent_name")
 
-            test_message = utils.Message(content=spec.get("test_message"))
-            logger.info(f"Sending test message to {agent_name}: {test_message.content}")
-            result = await self.send_message(test_message, AgentId(agent_name, "default"))
-            logger.info(f"Test result from {agent_name}: {result.content}")
+            if(spec.get("test_message")):
+                test_message = utils.Message(content=spec.get("test_message"))
+                result = await self.send_message(test_message, AgentId(agent_name, "default"))
+                results.append(f"{agent_name}: {result.content}")
 
-            results.append(f"{agent_name}: {result.content}")
+                if(spec.get("output_to")) and result.content:
+                    test_message = utils.Message(content=result.content)
+                    fwd_result = await self.send_message(test_message, AgentId(spec.get("output_to"), "default"))
+                    results.append(f"{agent_name}: {fwd_result.content}")
+                
 
         
         if results:
@@ -159,7 +169,7 @@ class Creator(RoutedAgent):
         """Validate a single agent spec. Return a list of error messages."""
     
         errors = []
-        required_fields = ["agent_name", "description", "system_message", "test_message"]
+        required_fields = ["agent_name", "description", "system_message"]
 
         for field in required_fields:
             if field not in spec or not spec[field]:
