@@ -42,7 +42,7 @@ agent-core/
 ### 1. Installation
 
 ```bash
-git clone <https://github.com/pushkqr/agent-core>
+git clone https://github.com/pushkqr/agent-core
 cd agent-core
 uv sync
 ```
