@@ -126,7 +126,15 @@ class Creator(RoutedAgent):
                     creator_func = lambda: module.Agent(agent_name, system_message)
                 
                 await module.Agent.register(self.runtime, agent_name, creator_func)
-                logger.info(f"Agent {agent_name} registered and live")
+                logger.info(f"Agent {agent_name} registered")
+                
+                if await self.health_check_agent(agent_name):
+                    logger.info(f"✅ {agent_name} is healthy and ready")
+                else:
+                    logger.error(f"❌ {agent_name} failed health check")
+                    all_errors.append(f"{agent_name}: Failed health check")
+                    continue
+                
             except Exception as e:
                 logger.error(f"Failed to register agent {agent_name}: {e}")
                 all_errors.append(f"{agent_name}: Failed to register -> {e}")
@@ -177,5 +185,14 @@ class Creator(RoutedAgent):
 
         current_version = self.get_template_version(template_file)
         return existing_version != current_version
+    
+    async def health_check_agent(self, agent_name):
+        try:
+            test_msg = utils.Message(content="ping")
+            result = await self.send_message(test_msg, AgentId(agent_name, "default"))
+            return True
+        except Exception as e:
+            logger.error(f"Health check failed for {agent_name}: {e}")
+            return False
 
 
