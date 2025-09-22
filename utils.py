@@ -5,6 +5,7 @@ import logging
 @dataclass
 class Message:
     content: str
+    sender: str
 
 class ColorFormatter(logging.Formatter):
     COLORS = {

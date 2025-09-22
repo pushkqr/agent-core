@@ -7,18 +7,24 @@ import utils
 import asyncio
 import os
 from dotenv import load_dotenv
+import logging
+from utils import setup_logging
+
+setup_logging(logging.DEBUG)
+logger = logging.getLogger("main")
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(override=True, dotenv_path=os.path.join(project_root, ".env"))
 
-TEMPLATE_VERSION = "1.0.0"
+TEMPLATE_VERSION = "1.0.3"
 
 class Agent(RoutedAgent):
-    def __init__(self, name, system_message, tools_specs=None) -> None:
+    def __init__(self, name, system_message, spec) -> None:
         super().__init__(name)
         self._system_message = "You are a agent that fetches information off the web."
         self._name = name
-        self._tools_specs = tools_specs or []
+        self.spec = spec or {}
+        self._tools_specs = spec.get("tools", []) # Use .get() to prevent KeyError if "tools" is missing
         self._delegate = None 
         asyncio.get_event_loop().create_task(self.setup_tools())
 
@@ -60,9 +66,19 @@ class Agent(RoutedAgent):
     @message_handler
     async def handle_message(self, message: utils.Message, ctx: MessageContext) -> utils.Message:
         if self._delegate is None:
-            await self.setup_tools()
+            # Removed self._setup_tools() as it's not defined, assuming setup_tools() is the correct one
+            await self.setup_tools() 
 
         print(f"{self.id.type}: Received message")
         text_message = TextMessage(content=message.content, source="user")
         response = await self._delegate.on_messages([text_message], ctx.cancellation_token)
-        return utils.Message(content=response.chat_message.content)
+        result = utils.Message(content=response.chat_message.content)
+
+        if("ping" in message.content):
+            return result
+        # Added .get() to prevent KeyError if "output_to" or "agent_name" is missing
+        elif(self.spec.get("output_to")): 
+            logger.debug(f"Agent: {self.spec.get("agent_name", "UnknownAgent")} --> o: {self.spec.get("output_to")}")
+            return result
+        
+        return result

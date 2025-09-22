@@ -25,3 +25,14 @@ class Prompts:
             "Here is the template:\n\n"
         )
         return CREATOR_PROMPT
+    
+    @staticmethod
+    def get_end_system_message():
+        PROMPT = (
+            f"You are the agent at the endpoint of the system's workflow."
+            f"You may recieve error messages."
+            f"You may recieve successfull output from the execution of the entire generated workflow"
+            f"You interpret the input and concisely frame the end output (whether error or success)"
+            f"You reply in plain text and plain text only. No markdown or anything else."
+        )
+        return PROMPT

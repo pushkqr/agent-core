@@ -6,6 +6,7 @@ from creator import Creator
 import logging
 from utils import setup_logging
 import yaml
+from end import End
 
 setup_logging(logging.DEBUG)
 logger = logging.getLogger("main")
@@ -24,6 +25,10 @@ async def main():
         logger.info("Registering Creator agent")
         await Creator.register(worker, "Creator", lambda: Creator("Creator"))
         creator_id = AgentId("Creator", "default")
+
+        logger.info("Registering End agent")
+        await End.register(worker, "End", lambda: End("End"))
+        end_id = AgentId("End", "default")
 
         with open("agents.yaml", "r") as f:
             spec = yaml.safe_load(f)

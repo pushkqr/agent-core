@@ -21,20 +21,16 @@ logger = logging.getLogger("main")
 
 
 class Creator(RoutedAgent):
-    system_message = Prompts.get_creator_system_message()
 
-    def __init__(self, name) -> None:
+    def __init__(self, name):
         super().__init__(name)
+        system_message = Prompts.get_creator_system_message()
         logger.debug(f"Initializing Creator agent: {name}")
-        model_client = OpenAIChatCompletionClient(
-            model=utils.MODEL_NAME,
-            model_info=utils.GEMINI_INFO,
-            api_key=os.getenv("GOOGLE_API_KEY")
-        )
-        self._delegate = AssistantAgent(name, model_client=model_client)
+        model_client = OpenAIChatCompletionClient(model=utils.MODEL_NAME, model_info=utils.GEMINI_INFO, api_key=os.getenv("GOOGLE_API_KEY"))
+        self._delegate = AssistantAgent(name, model_client=model_client, system_message=system_message)
         logger.debug("Delegate AssistantAgent initialized")
 
-    def get_generation_prompt(self, description: str, system_message: str, spec: dict, template_file: str):
+    def get_generation_prompt(self, description: str, system_message: str, template_file: str):
         logger.debug("Building user prompt for Agent generation")
         prompt = Prompts.get_creator_prompt(description, system_message)
 
@@ -44,15 +40,16 @@ class Creator(RoutedAgent):
 
 
     @message_handler
-    async def handle_message(self, message: utils.Message, ctx: MessageContext) -> utils.Message:
+    async def handle_message(self, message: utils.Message, ctx: MessageContext):
         logger.info(f"Creator received message: {message.content}")
+        
         try:
             config = yaml.safe_load(message.content)
         except yaml.YAMLError as e:
-            return utils.Message(content=f"YAML parse error: {e}")
+            await self.send_message(utils.Message(content=f"YAML parse error: {e}", sender="Creator"), AgentId("End", "default"))
         
         if "agents" not in config or not isinstance(config["agents"], list):
-            return utils.Message(content="YAML must have a top-level 'agents' list.")
+            self.send_message(utils.Message(content="YAML must have a top-level 'agents' list.", sender="Creator"), AgentId("End", "default"))
 
         agents = config.get("agents", [])
         all_errors = []
@@ -85,7 +82,7 @@ class Creator(RoutedAgent):
                     logger.info(f"Agent file {filename} already exists, skipping generation")
                 else:
                     text_message = TextMessage(
-                        content=self.get_generation_prompt(description, system_message, spec, template_file),
+                        content=self.get_generation_prompt(description, system_message, template_file),
                         source="user"
                     )
 
@@ -106,7 +103,7 @@ class Creator(RoutedAgent):
                         compile(generated_code, filename, 'exec')
                     except SyntaxError as e:
                         logger.error(f"Generated code has syntax errors: {e}")
-                        return utils.Message(content=f"Syntax error in generated code: {e}")
+                        await self.send_message(utils.Message(content=f"Syntax error in generated code: {e}", sender="Creator"), AgentId("End", "default"))
 
                     os.makedirs(os.path.dirname(filename), exist_ok=True)
 
@@ -120,24 +117,14 @@ class Creator(RoutedAgent):
                     module = importlib.import_module(module_path)
                 except Exception as e:
                     logger.error(f"Failed to import/reload module {module_path}: {e}")
-                    return utils.Message(content=f"Error importing {agent_name}: {e}")
+                    await self.send_message(utils.Message(content=f"Error importing {agent_name}: {e}", sender="Creator"), AgentId("End", "default"))
 
                 try:
-                    if "tools" in spec and spec["tools"]:
-                        tools_specs = spec.get("tools", [])
-                        creator_func = lambda: module.Agent(agent_name, system_message, tools_specs)
-                    else:
-                        creator_func = lambda: module.Agent(agent_name, system_message)
-                    
+                    creator_func = lambda: module.Agent(agent_name, system_message, spec)
+                    logger.info(f"Registering agent {agent_name}")
                     await module.Agent.register(self.runtime, agent_name, creator_func)
-                    logger.info(f"Agent {agent_name} registered")
-                    
-                    if await self.health_check_agent(agent_name):
-                        logger.info(f"✅ {agent_name} is healthy and ready")
-                    else:
-                        logger.error(f"❌ {agent_name} failed health check")
-                        all_errors.append(f"{agent_name}: Failed health check")
-                        continue
+                    await self.init_agent(agent_name)
+                    logger.info(f"Agent {agent_name} registered and live")  
                     
                 except Exception as e:
                     logger.error(f"Failed to register agent {agent_name}: {e}")
@@ -146,18 +133,6 @@ class Creator(RoutedAgent):
                 
                 registered_agents[agent_name] = spec
             
-            for spec in agents:
-                agent_name = spec.get("agent_name")
-
-                if(spec.get("test_message")):
-                    test_message = utils.Message(content=spec.get("test_message"))
-                    result = await self.send_message(test_message, AgentId(agent_name, "default"))
-                    results.append(f"{agent_name}: {result.content}")
-
-                    if(spec.get("output_to")) and result.content:
-                        test_message = utils.Message(content=result.content)
-                        fwd_result = await self.send_message(test_message, AgentId(spec.get("output_to"), "default"))
-                        results.append(f"{agent_name}: {fwd_result.content}")
         else:
             all_errors.append(workflow_error)           
 
@@ -166,7 +141,8 @@ class Creator(RoutedAgent):
             response_parts.append("✅ Registered agents:\n" + "\n".join(results))
         if all_errors:
             response_parts.append("❌ Spec validation errors:\n" + "\n\n".join(all_errors))
-        return utils.Message(content="\n\n".join(response_parts))
+        
+        await self.send_message(utils.Message(content="\n\n".join(response_parts), sender="Creator"), AgentId("End", "default"))
     
     @staticmethod
     def validate_agent_spec(spec: dict) -> list[str]:
@@ -216,13 +192,9 @@ class Creator(RoutedAgent):
         current_version = self.get_template_version(template_file)
         return existing_version != current_version
     
-    async def health_check_agent(self, agent_name):
-        try:
-            test_msg = utils.Message(content="ping")
-            result = await self.send_message(test_msg, AgentId(agent_name, "default"))
-            return True
-        except Exception as e:
-            logger.error(f"Health check failed for {agent_name}: {e}")
-            return False
+    async def init_agent(self, agent_name):
+        test_msg = utils.Message(content="ping", sender="Creator")
+        await self.send_message(test_msg, AgentId(agent_name, "default"))
+
 
 

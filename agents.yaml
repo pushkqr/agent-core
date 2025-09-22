@@ -3,7 +3,7 @@ agents:
     agent_name: fetcher
     description: "An agent that fetches information from the web."
     system_message: "You are a agent that fetches information off the web."
-    test_message: "Fetch a news article about the latest AI bubble."
+    test_message: "fetch information about the recent nepal incident."
     tools:
       - name: fetch_server
         params:
