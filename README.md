@@ -25,15 +25,21 @@ A powerful framework for creating, managing, and orchestrating AI agents with dy
 
 ```
 agent-core/
-├── creator.py              # Main agent creation and orchestration
-├── templates/              # Agent templates
-│   ├── agent.py           # Basic agent template
-│   └── agent_with_tools.py # Agent with MCP tools template
-├── agents/                # Generated agent files
-├── agents.yaml           # Agent configuration
-├── prompts.py            # AI generation prompts
-├── utils.py              # Utilities and logging
+├── src/                   # Source code
+│   ├── agents/           # Core agents
+│   │   ├── creator.py    # Agent creation and orchestration
+│   │   └── end.py        # Workflow endpoint agent
+│   ├── templates/        # Agent templates
+│   │   ├── agent.py      # Basic agent template
+│   │   └── agent_with_tools.py # Agent with MCP tools template
+│   └── utils/            # Utilities
+│       ├── utils.py      # Core utilities and logging
+│       └── prompts.py    # AI generation prompts
+├── generated/            # Runtime-generated agents
+├── config/               # Configuration files
+│   └── agents.yaml       # Agent specifications
 ├── main.py               # Application entry point
+├── workflow_state.py     # Workflow management
 └── pyproject.toml        # Dependencies
 ```
 
@@ -58,11 +64,11 @@ BRAVE_API_KEY=your_brave_search_api_key
 
 ### 3. Configure Agents
 
-Edit `agents.yaml`:
+Edit `config/agents.yaml`:
 
 ```yaml
 agents:
-  - filename: agents/fetcher.py
+  - filename: generated/fetcher.py
     agent_name: fetcher
     description: "An agent that fetches information from the web."
     system_message: "You are an agent that fetches information off the web."
@@ -83,12 +89,27 @@ agents:
 uv run main.py
 ```
 
-## 🔧 Usage
+## 🏗️ Architecture
+
+### Directory Organization
+
+- **`src/`**: Core source code with proper Python package structure
+  - **`agents/`**: Core agents (Creator, End) that manage the workflow
+  - **`templates/`**: Agent templates used for code generation
+  - **`utils/`**: Shared utilities, logging, and prompts
+- **`generated/`**: Runtime-generated agents (created by Creator)
+- **`config/`**: Configuration files (YAML specifications)
+
+### Workflow Execution
 
 The Creator agent processes YAML configurations and:
 
-1. **Generates** agent code from templates
-2. **Registers** agents with the runtime
-3. **Validates** agent health
-4. **Executes** workflows with agent communication
+1. **Generates** agent code from templates in `src/templates/`
+2. **Saves** generated agents to `generated/` directory
+3. **Registers** agents with the AutoGen runtime
+4. **Validates** agent health and dependencies
+5. **Executes** workflows with agent communication
+6. **Manages** message flow between agents
+
+## 🔧 Usage
 
