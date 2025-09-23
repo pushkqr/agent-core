@@ -111,5 +111,4 @@ The Creator agent processes YAML configurations and:
 5. **Executes** workflows with agent communication
 6. **Manages** message flow between agents
 
-## 🔧 Usage
 
