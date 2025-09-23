@@ -7,11 +7,11 @@ from autogen_core import MessageContext, RoutedAgent, message_handler, TRACE_LOG
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import TextMessage
 from autogen_ext.models.openai import OpenAIChatCompletionClient
-import utils
-from utils import setup_logging
+from src.utils import utils
+from src.utils.utils import setup_logging
 import yaml
 import re
-from prompts import Prompts
+from src.utils.prompts import Prompts
 
 load_dotenv(override=True)
 
@@ -73,16 +73,16 @@ class Creator(RoutedAgent):
                 all_errors.append(f"Agent {i} ({spec.get('agent_name', 'unknown')}):\n" + "\n".join(errors))
                 continue
             
-            filename = spec.get("filename", "agents/new_agent.py")
+            filename = spec.get("filename", "generated/new_agent.py")
             agent_name = spec.get("agent_name", os.path.splitext(os.path.basename(filename))[0])
-            module_path = f"agents.{agent_name}"
+            module_path = f"generated.{agent_name}"
             description = spec.get("description", "An AI agent.")
             system_message = spec.get("system_message", "You are an AI agent.")
 
             if "tools" in spec and spec["tools"]:
-                template_file = "templates/agent_with_tools.py"
+                template_file = "src/templates/agent_with_tools.py"
             else:
-                template_file = "templates/agent.py"
+                template_file = "src/templates/agent.py"
 
             if os.path.exists(filename) and not self.should_regenerate(filename, template_file):
                 logger.info(f"Agent file {filename} already exists, skipping generation")

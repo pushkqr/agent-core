@@ -3,12 +3,12 @@ from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import TextMessage
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_ext.tools.mcp import StdioServerParams, mcp_server_tools
-import utils
+from src.utils import utils
 import asyncio
 import os
 from dotenv import load_dotenv
 import logging
-from utils import setup_logging
+from src.utils.utils import setup_logging
 
 setup_logging(logging.DEBUG)
 logger = logging.getLogger("main")
@@ -24,7 +24,7 @@ class Agent(RoutedAgent):
         self._system_message = system_message
         self._name = name
         self.spec = spec or {}
-        self._tools_specs = spec.get("tools", [])
+        self._tools_specs = spec["tools"] or []
         self._delegate = None 
         asyncio.get_event_loop().create_task(self.setup_tools())
 

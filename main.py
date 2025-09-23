@@ -1,12 +1,12 @@
 import asyncio
-import utils
+from src.utils import utils
 from autogen_ext.runtimes.grpc import GrpcWorkerAgentRuntimeHost, GrpcWorkerAgentRuntime
 from autogen_core import AgentId
-from creator import Creator
+from src.agents.creator import Creator
 import logging
-from utils import setup_logging
+from src.utils.utils import setup_logging
 import yaml
-from end import End
+from src.agents.end import End
 from workflow_state import workflow_state
 
 setup_logging(logging.DEBUG)
@@ -31,7 +31,7 @@ async def main() -> None:
         await End.register(worker, "End", lambda: End("End"))
         end_id = AgentId("End", "default")
 
-        with open("agents.yaml", "r") as f:
+        with open("config/agents.yaml", "r") as f:
             spec = yaml.safe_load(f)
 
         content = yaml.safe_dump(spec)

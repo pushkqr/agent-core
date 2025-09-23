@@ -1,5 +1,5 @@
 agents:
-  - filename: agents/fetcher.py
+  - filename: generated/fetcher.py
     agent_name: fetcher
     description: "An agent that fetches information from the web."
     system_message: "You are a agent that fetches information off the web."
@@ -12,7 +12,7 @@ agents:
           env:
             BRAVE_API_KEY: "${BRAVE_API_KEY}"
     output_to: summarizer
-  - filename: agents/summarizer.py
+  - filename: generated/summarizer.py
     agent_name: summarizer
     description: "An agent that summarizes paragraphs into concise points."
     system_message: "You are a summarizer agent. Take long text and output concise summaries. You ouput only the summaries, no other text."

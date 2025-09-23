@@ -2,11 +2,11 @@ from autogen_core import MessageContext, RoutedAgent, message_handler, AgentId
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import TextMessage
 from autogen_ext.models.openai import OpenAIChatCompletionClient
-import utils
+from src.utils import utils
 import os
 from dotenv import load_dotenv
 import logging
-from utils import setup_logging
+from src.utils.utils import setup_logging
 
 setup_logging(logging.DEBUG)
 logger = logging.getLogger("main")
@@ -40,4 +40,3 @@ class Agent(RoutedAgent):
             await self.send_message(result, AgentId("End", "default"))
         
         return utils.Message(content="", sender=self.spec.get("agent_name", "agent"))
-  
