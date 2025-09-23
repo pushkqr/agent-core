@@ -15,4 +15,5 @@ agents:
   - filename: agents/summarizer.py
     agent_name: summarizer
     description: "An agent that summarizes paragraphs into concise points."
-    system_message: "You are a summarizer agent. Take long text and output concise summaries."
+    system_message: "You are a summarizer agent. Take long text and output concise summaries. You ouput only the summaries, no other text."
+    

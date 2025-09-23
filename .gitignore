@@ -1,5 +1,7 @@
 #custom
 .env
+/.vscode
+
 
 
 # Byte-compiled / optimized / DLL files

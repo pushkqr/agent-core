@@ -14,10 +14,10 @@ logger = logging.getLogger("main")
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(override=True, dotenv_path=os.path.join(project_root, ".env"))
 
-TEMPLATE_VERSION = "1.0.3"
+TEMPLATE_VERSION = "1.0.0"
 
 class Agent(RoutedAgent):
-    def __init__(self, name, system_message, spec):
+    def __init__(self, name, system_message, spec) -> None:
         super().__init__(name)
         self.spec = spec or {}
         prompt = system_message
@@ -25,17 +25,19 @@ class Agent(RoutedAgent):
         self._delegate = AssistantAgent(name, model_client=model_client, system_message=prompt)
 
     @message_handler
-    async def handle_message(self, message: utils.Message, ctx: MessageContext):
-        print(f"{self.id.type}: Received message")
+    async def handle_message(self, message: utils.Message, ctx: MessageContext) -> utils.Message:
+        logger.info(f"{self.id.type}: Received message")
         text_message = TextMessage(content=message.content, source="user")
         response = await self._delegate.on_messages([text_message], ctx.cancellation_token)
-        result = utils.Message(content=response.chat_message.content, sender=self.spec["agent_name"])
+        result = utils.Message(content=response.chat_message.content, sender=self.spec.get("agent_name", "agent"))
 
-        if("ping" in message.content):
-            pass
-        elif(self.spec["output_to"]):
-            logger.debug(f"Agent: {self.spec["agent_name"]} --> o: {self.spec["output_to"]}")
-            await self.send_message(result, AgentId(self.spec["output_to"], "default"))
+        output_to = self.spec.get("output_to")
+        if output_to:
+            logger.debug(f"Agent: {self.spec.get('agent_name', 'agent')} --> to: {output_to}")
+            await self.send_message(result, AgentId(output_to, "default"))
         else:
+            logger.debug(f"Agent: {self.spec.get('agent_name', 'agent')} --> to: End")
             await self.send_message(result, AgentId("End", "default"))
+        
+        return utils.Message(content="", sender=self.spec.get("agent_name", "agent"))
   
