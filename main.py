@@ -8,6 +8,7 @@ import logging
 from src.utils.utils import setup_logging
 import yaml
 from src.agents.end import End
+from src.agents.start import Start
 from workflow_state import workflow_state
 from dotenv import load_dotenv
 
@@ -37,15 +38,18 @@ async def main() -> None:
         await Creator.register(worker, "Creator", lambda: Creator("Creator"))
         creator_id = AgentId("Creator", "default")
 
+        logger.info("Registering Start agent")
+        await Start.register(worker, "Start", lambda: Start("Start"))
+
         logger.info("Registering End agent")
         await End.register(worker, "End", lambda: End("End"))
-        end_id = AgentId("End", "default")
 
         with open("config/agents.yaml", "r") as f:
             spec = yaml.safe_load(f)
 
         content = yaml.safe_dump(spec)
 
+        # Allow time for agent registration to complete
         await asyncio.sleep(1)
 
         logger.info("Sending message to Creator")

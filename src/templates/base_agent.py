@@ -50,10 +50,6 @@ class BaseAgent(RoutedAgent):
             context.append(f"Last activity: {time.time() - self._last_activity:.1f}s ago")
         return "; ".join(context)
 
-    def _get_last_activity(self) -> str:
-        if self._last_activity:
-            return f"{time.time() - self._last_activity:.1f}s ago"
-        return "unknown"
 
     @message_handler
     async def handle_message(self, message: utils.Message, ctx: MessageContext) -> utils.Message:
@@ -74,7 +70,8 @@ class BaseAgent(RoutedAgent):
             logger.info(f"✅ {self._name}: Completed")
             
         except asyncio.TimeoutError:
-            result_content = f"Agent {self._name} timed out after {self._timeout}s. Last activity: {self._get_last_activity()}. Context: {self._get_error_context()}"
+            last_activity = f"{time.time() - self._last_activity:.1f}s ago" if self._last_activity else "unknown"
+            result_content = f"Agent {self._name} timed out after {self._timeout}s. Last activity: {last_activity}. Context: {self._get_error_context()}"
             logger.error(f"⏰ {self._name}: TIMEOUT after {self._timeout}s")
             
         except Exception as e:

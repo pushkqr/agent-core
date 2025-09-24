@@ -9,7 +9,7 @@ class Prompts:
     
     CRITICAL REQUIREMENTS:
     1. The class must be named Agent
-    2. It must inherit from RoutedAgent
+    2. It must inherit from BaseAgent
     3. The __init__ method must have EXACTLY this signature: def __init__(self, name, system_message, spec) -> None:
     4. You MUST use the system_message parameter passed to __init__ as the agent's prompt - DO NOT generate your own
     5. You MUST store the spec parameter as self.spec = spec or {}
@@ -25,7 +25,7 @@ class Prompts:
     def get_creator_prompt(description, system_message):
         CREATOR_PROMPT = (
             f"Please generate a new Agent based on this template. "
-            f"The class must still be named Agent, inherit from RoutedAgent, and follow the "
+            f"The class must still be named Agent, inherit from BaseAgent, and follow the "
             f"EXACT __init__ method signature: def __init__(self, name, system_message, spec) -> None:\n\n"
             f"IMPORTANT: Use the system_message parameter as the agent's prompt - DO NOT generate your own system message.\n"
             f"IMPORTANT: Store the spec parameter as self.spec = spec or {{}}.\n\n"
@@ -37,6 +37,17 @@ class Prompts:
             "Here is the template:\n\n"
         )
         return CREATOR_PROMPT
+    
+    @staticmethod
+    def get_start_system_message():
+        PROMPT = (
+            "You are the workflow initiation agent.\n"
+            "You receive workflow specifications and are responsible for starting the workflow execution.\n"
+            "Your job is to process the workflow configuration and initiate the first agent in the chain.\n"
+            "You handle both automated workflows (using test messages) and interactive workflows (collecting user input).\n"
+            "Always ensure the workflow starts correctly and the first agent receives the appropriate message."
+        )
+        return PROMPT
     
     @staticmethod
     def get_end_system_message():

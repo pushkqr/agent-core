@@ -1,3 +1,7 @@
+workflow_config:
+  input_mode: "interactive"
+  input_prompt: "What topic would you like me to research and summarize for you?"
+  input_timeout: 60
 agents:
   - filename: generated/fetcher.py
     agent_name: fetcher

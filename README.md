@@ -1,10 +1,11 @@
 # Agent Core
 
-A powerful framework for creating, managing, and orchestrating AI agents with dynamic tool integration and workflow communication.
+A powerful framework for creating, managing, and orchestrating AI agents with dynamic tool integration and flexible workflow communication.
 
 ## 🚀 Features
 
 - **Dynamic Agent Generation**: Create AI agents from YAML specifications with AI-powered code generation
+- **Flexible Input Handling**: Support for both automated workflows (test messages) and interactive user input
 - **Tool Integration**: Seamless integration with MCP (Model Context Protocol) servers with robust error handling
 - **Agent Communication**: Linear workflow execution with message forwarding and state management
 - **Environment Management**: Centralized API key handling with environment variable resolution
@@ -12,7 +13,7 @@ A powerful framework for creating, managing, and orchestrating AI agents with dy
 - **Template Versioning**: Smart agent regeneration when templates are updated with file modification tracking
 - **Security Validation**: Basic code validation for AI-generated agents to prevent dangerous operations
 - **Configurable Timeouts**: Customizable workflow timeouts via environment variables
-- **Optimized Performance**: Efficient module reloading and reduced redundant operations
+- **Optimized Performance**: Efficient module reloading, reduced redundant operations, and streamlined architecture
 
 ## 🛠️ Tech Stack
 
@@ -31,7 +32,8 @@ agent-core/
 ├── src/                   # Source code
 │   ├── agents/           # Core agents
 │   │   ├── creator.py    # Agent creation, orchestration, and security validation
-│   │   └── end.py        # Workflow endpoint agent
+│   │   ├── start.py      # Workflow initiation agent with input handling
+│   │   └── end.py        # Workflow endpoint agent 
 │   ├── templates/        # Agent templates with inheritance
 │   │   ├── base_agent.py # Base agent class with common functionality
 │   │   ├── agent.py      # Simple agent template (inherits from BaseAgent)
@@ -41,7 +43,7 @@ agent-core/
 │       └── prompts.py    # AI generation prompts
 ├── generated/            # Runtime-generated agents (auto-created)
 ├── config/               # Configuration files
-│   └── agents.yaml       # Agent specifications
+│   └── agents.yaml       # Agent specifications with workflow config
 ├── main.py               # Application entry point with environment setup
 ├── workflow_state.py     # Workflow state management with proper cleanup
 └── pyproject.toml        # Dependencies and project configuration
@@ -73,6 +75,12 @@ DEBUG=false  # Optional: enable debug logging (default: false)
 Edit `config/agents.yaml`:
 
 ```yaml
+# Workflow configuration
+workflow_config:
+  input_mode: "test_message"  # Options: "test_message" or "interactive"
+  input_prompt: "What would you like me to help you with?"
+  input_timeout: 60  # seconds
+
 agents:
   - filename: generated/fetcher.py
     agent_name: fetcher
@@ -88,6 +96,11 @@ agents:
           env:
             BRAVE_API_KEY: "${BRAVE_API_KEY}"
     output_to: summarizer
+  - filename: generated/summarizer.py
+    agent_name: summarizer
+    description: "An agent that summarizes text into concise points."
+    system_message: "You are a summarizer agent. Take long text and output concise summaries."
+    timeout: 20
 ```
 
 ### 4. Run
@@ -108,12 +121,16 @@ DEBUG=true uv run main.py
 - **INFO (default)**: Shows workflow progress, agent completions, and errors only
 - **DEBUG**: Shows detailed internal operations, message passing, registration details, and AutoGen Core logs
 
+**Input Modes:**
+- **test_message**: Uses predefined test messages for automated workflows
+- **interactive**: Prompts user for input with configurable timeout
+
 ## 🏗️ Architecture
 
 ### Directory Organization
 
 - **`src/`**: Core source code with proper Python package structure
-  - **`agents/`**: Core agents (Creator, End) that manage the workflow
+  - **`agents/`**: Core agents (Creator, Start, End) that manage the workflow
   - **`templates/`**: Agent templates used for code generation
   - **`utils/`**: Shared utilities, logging, and prompts
 - **`generated/`**: Runtime-generated agents (created by Creator)
@@ -121,25 +138,43 @@ DEBUG=true uv run main.py
 
 ### Workflow Execution
 
-The Creator agent processes YAML configurations and:
+The workflow follows this optimized architecture:
 
+```
+main.py → Creator → Start → [Generated Agents] → End
+```
+
+1. **Creator Agent**: Processes YAML configurations and generates agent code
+2. **Start Agent**: Handles workflow initiation with flexible input modes
+3. **Generated Agents**: Execute the actual workflow tasks
+4. **End Agent**: Captures final results and signals completion
+
+**Creator Agent Process:**
 1. **Validates** YAML configuration and workflow structure
 2. **Generates** agent code from templates with security validation
 3. **Saves** generated agents to `generated/` directory with version tracking
 4. **Registers** agents with the AutoGen runtime with error handling
-5. **Validates** agent health and tool dependencies with fallback mechanisms
-6. **Executes** workflows with proper state management and timeout handling
-7. **Manages** message flow between agents with comprehensive logging
+5. **Sends** workflow specification to Start agent
+
+**Start Agent Process:**
+1. **Receives** workflow specification from Creator
+2. **Validates** workflow components and agent registration
+3. **Handles** input collection (interactive or test_message mode)
+4. **Initiates** workflow by sending message to head agent
+5. **Manages** error handling and workflow state
 
 ### Key Improvements
 
+- **Flexible Input Handling**: Support for both automated and interactive workflows
+- **Optimized Architecture**: Streamlined workflow with dedicated Start agent for input handling
 - **Error Resilience**: Agents gracefully handle tool failures and continue operation
 - **Enhanced Error Reporting**: Detailed error messages with context and debugging information
 - **Agent-Specific Timeouts**: Configurable timeouts per agent with detailed timeout reporting
 - **Security**: Basic validation prevents dangerous code execution in generated agents
-- **Performance**: Optimized module reloading and reduced redundant operations
+- **Performance**: Optimized module reloading, reduced redundant operations, and clean code
 - **Maintainability**: Clean code structure with shared base classes and type hints
 - **Configurability**: Environment-based configuration for timeouts and behavior
 - **State Management**: Proper cleanup prevents state pollution between runs
+- **LLM Optimization**: Start and End agents optimized to avoid unnecessary LLM calls
 
 

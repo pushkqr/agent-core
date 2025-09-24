@@ -15,9 +15,9 @@ TEMPLATE_VERSION = "1.0.0"
 class Agent(BaseAgent):
     def __init__(self, name, system_message, spec) -> None:
         super().__init__(name, system_message, spec)
-        self.spec = spec or {}
         self._tools_specs = spec.get("tools", []) or []
         self._delegate = None 
+        self.spec = spec or {}
 
     async def setup_tools(self):
         try:
@@ -31,9 +31,10 @@ class Agent(BaseAgent):
                         for key, value in params["env"].items():
                             if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
                                 env_var = value[2:-1]
-                                resolved_env[key] = os.getenv(env_var)
-                                if resolved_env[key] is None:
+                                env_value = os.getenv(env_var)
+                                if env_value is None:
                                     logger.warning(f"Environment variable {env_var} not found for tool {spec.get('name', 'unknown')}")
+                                resolved_env[key] = env_value
                             else:
                                 resolved_env[key] = value
                         params["env"] = resolved_env

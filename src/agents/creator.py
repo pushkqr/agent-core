@@ -2,6 +2,7 @@ import os
 import sys
 import importlib
 import logging
+import json
 from autogen_core import MessageContext, RoutedAgent, message_handler, TRACE_LOGGER_NAME, AgentId
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import TextMessage
@@ -20,13 +21,10 @@ class Creator(RoutedAgent):
     def __init__(self, name) -> None:
         super().__init__(name)
         system_message = Prompts.get_creator_system_message()
-        logger.debug(f"Initializing Creator agent: {name}")
         model_client = OpenAIChatCompletionClient(model=utils.MODEL_NAME, model_info=utils.GEMINI_INFO, api_key=os.getenv("GOOGLE_API_KEY"))
         self._delegate = AssistantAgent(name, model_client=model_client, system_message=system_message)
-        logger.debug("Delegate AssistantAgent initialized")
 
     def get_generation_prompt(self, description: str, system_message: str, template_file: str) -> str:
-        logger.debug("Building user prompt for Agent generation")
         prompt = Prompts.get_creator_prompt(description, system_message)
 
         with open(template_file, "r", encoding="utf-8") as f:
@@ -49,6 +47,7 @@ class Creator(RoutedAgent):
             return utils.Message(content="", sender="Creator")
 
         agents = config.get("agents", [])
+        workflow_config = config.get("workflow_config", {})
         all_errors = []
         registered_agents = {}
 
@@ -87,15 +86,13 @@ class Creator(RoutedAgent):
                     source="user"
                 )
 
-                logger.debug(f"Sending prompt to delegate:\n{text_message.content[:300]}...")
-
                 response = await self._delegate.on_messages([text_message], ctx.cancellation_token)
-
-                logger.debug(f"Received response from delegate:\n{response.chat_message.content[:300]}...")
 
                 generated_code = response.chat_message.content
 
-                for marker in ["TERMINATE", "END", "END OF CODE", "```python", "```"]:
+                # Remove common LLM response markers
+                markers = ["TERMINATE", "END", "END OF CODE", "```python", "```"]
+                for marker in markers:
                     generated_code = generated_code.replace(marker, "")
 
                 generated_code = generated_code.strip()
@@ -163,8 +160,25 @@ class Creator(RoutedAgent):
         workflow_progress = self._generate_workflow_progress(agents, registered_agents)
         logger.info(f"🚀 Starting workflow:\n{workflow_progress}")
         
+        # Create workflow specification for Start agent
+        workflow_spec = {
+            "agents": registered_agents,
+            "head_agent": head_agent,
+            "workflow_config": {
+                "input_mode": workflow_config.get("input_mode", "test_message"),
+                "input_prompt": workflow_config.get("input_prompt", "What would you like me to help you with?")
+            }
+        }
+        
         logger.debug(f"Workflow will start with agent {head_agent.get('agent_name')}")
-        await self.send_message(utils.Message(content=test_message, sender="Creator"), AgentId(head_agent.get('agent_name'), "default"))
+        try:
+            await self.send_message(utils.Message(content=json.dumps(workflow_spec), sender="Creator"), AgentId("Start", "default"))
+        except Exception as e:
+            logger.error(f"❌ Creator: Failed to send workflow spec to Start agent: {e}")
+            await self.send_message(
+                utils.Message(content=f"❌ Failed to start workflow: {e}", sender="Creator"), 
+                AgentId("End", "default")
+            )
 
         if all_errors:
             await self.send_message(
