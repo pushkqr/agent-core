@@ -6,6 +6,7 @@ from src.utils import utils
 import asyncio
 import logging
 import os
+import time
 
 logger = logging.getLogger("main")
 
@@ -14,8 +15,8 @@ TEMPLATE_VERSION = "1.0.0"
 class Agent(BaseAgent):
     def __init__(self, name, system_message, spec) -> None:
         super().__init__(name, system_message, spec)
-        self.spec = spec or {} # Storing spec as required
-        self._tools_specs = self.spec.get("tools", []) or [] # Use self.spec
+        self.spec = spec or {}
+        self._tools_specs = spec.get("tools", []) or []
         self._delegate = None 
 
     async def setup_tools(self):
@@ -53,6 +54,20 @@ class Agent(BaseAgent):
             logger.error(f"Failed to setup tools for {self._name}: {e}")
             await self._setup_delegate([])
             logger.warning(f"Initialized {self._name} without tools due to setup failure")
+
+    def _get_error_context(self) -> str:
+        context = []
+        if self._tools_specs:
+            context.append(f"Tools configured: {len(self._tools_specs)}")
+            tool_names = [spec.get('name', 'unknown') for spec in self._tools_specs]
+            context.append(f"Tool names: {', '.join(tool_names)}")
+        if self._delegate:
+            context.append("Delegate initialized")
+        else:
+            context.append("Delegate not initialized")
+        if self._last_activity:
+            context.append(f"Last activity: {time.time() - self._last_activity:.1f}s ago")
+        return "; ".join(context)
 
     @message_handler
     async def handle_message(self, message: utils.Message, ctx: MessageContext) -> utils.Message:

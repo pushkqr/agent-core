@@ -11,7 +11,6 @@ from src.agents.end import End
 from workflow_state import workflow_state
 from dotenv import load_dotenv
 
-setup_logging(logging.DEBUG)
 logger = logging.getLogger("main")
 
 
@@ -19,7 +18,14 @@ async def main() -> None:
     load_dotenv(override=True)
     workflow_state.reset()
     
-    logger.info("Starting host and worker")
+    debug_mode = os.getenv("DEBUG", "false").lower() in ("true", "1", "yes")
+    if debug_mode:
+        setup_logging(logging.DEBUG)
+        logger.info("🐛 Debug mode enabled")
+    else:
+        setup_logging(logging.INFO)
+    
+    logger.info("🚀 Starting Agent Core")
     host = GrpcWorkerAgentRuntimeHost(address="localhost:50051")
     worker = GrpcWorkerAgentRuntime(host_address="localhost:50051")
 
@@ -58,10 +64,10 @@ async def main() -> None:
             success, result = False, f"Workflow timed out after {timeout_minutes} minutes"
         
         if success:
-            logger.info(f"✅ Workflow completed successfully!")
-            logger.info(f"Result: {result}")
+            logger.info(f"🎉 Workflow completed successfully!")
+            logger.info(f"📋 Final result: {result}")
         else:
-            logger.error(f"❌ Workflow failed: {result}")
+            logger.error(f"💥 Workflow failed: {result}")
             
     except Exception as e:
         logger.error(f"Main process error: {e}")

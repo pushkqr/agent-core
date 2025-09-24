@@ -6,11 +6,9 @@ from src.utils.prompts import Prompts
 from src.utils import utils
 import os
 import logging
-from src.utils.utils import setup_logging
 from workflow_state import workflow_state
 import asyncio
 
-setup_logging(logging.DEBUG)
 logger = logging.getLogger("main")
 
 
@@ -23,10 +21,11 @@ class End(RoutedAgent):
 
     @message_handler
     async def handle_message(self, message: utils.Message, ctx: MessageContext) -> utils.Message:
-        logger.info(f"{self.id.type}: Received message\nFrom: {message.sender}")
+        logger.debug(f"🏁 End: Received final message from {message.sender}")
         text_message = TextMessage(content=message.content, source="user")
         response = await self._delegate.on_messages([text_message], ctx.cancellation_token)
-        logger.info(f"Workflow completed with result: {response.chat_message.content}")
+        logger.debug(f"🎉 Workflow completed successfully!")
+        logger.debug(f"📋 Final result: {response.chat_message.content}")
         workflow_state.set_completion(response.chat_message.content)
         
         return utils.Message(content="", sender="End")

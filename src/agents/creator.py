@@ -7,12 +7,10 @@ from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import TextMessage
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from src.utils import utils
-from src.utils.utils import setup_logging
 import yaml
 import re
 from src.utils.prompts import Prompts
 
-setup_logging(logging.DEBUG)
 logger = logging.getLogger("main")
 
 
@@ -38,7 +36,7 @@ class Creator(RoutedAgent):
 
     @message_handler
     async def handle_message(self, message: utils.Message, ctx: MessageContext) -> utils.Message:
-        logger.info(f"Creator received message: {message.content}")
+        logger.debug(f"Creator received message: {message.content}")
         
         try:
             config = yaml.safe_load(message.content)
@@ -82,7 +80,7 @@ class Creator(RoutedAgent):
                 template_file = "src/templates/agent.py"
 
             if os.path.exists(filename) and not self.should_regenerate(filename, template_file):
-                logger.info(f"Agent file {filename} already exists, skipping generation")
+                logger.debug(f"Agent file {filename} already exists, skipping generation")
             else:
                 text_message = TextMessage(
                     content=self.get_generation_prompt(description, system_message, template_file),
@@ -119,7 +117,7 @@ class Creator(RoutedAgent):
 
                 with open(filename, "w", encoding="utf-8") as f:
                     f.write(generated_code)
-                logger.info(f"Saved generated agent code to {filename}")
+                logger.debug(f"Saved generated agent code to {filename}")
 
             try:
                 if module_path in sys.modules:
@@ -142,9 +140,9 @@ class Creator(RoutedAgent):
                 return utils.Message(content="", sender="Creator")
 
             try:
-                logger.info(f"Registering agent {agent_name}")
+                logger.debug(f"Registering agent {agent_name}")
                 await module.Agent.register(self.runtime, agent_name, Creator.create_agent(module, agent_name, system_message, spec))
-                logger.info(f"Agent {agent_name} registered and live")  
+                logger.debug(f"Agent {agent_name} registered and live")  
             except Exception as e:
                 logger.error(f"Failed to register agent {agent_name}: {e}")
                 all_errors.append(f"{agent_name}: Failed to register -> {e}")
@@ -162,7 +160,10 @@ class Creator(RoutedAgent):
             await self.send_message(utils.Message(content="❌ Head agent has no test_message specified", sender="Creator"), AgentId("End", "default"))
             return utils.Message(content="", sender="Creator")
             
-        logger.info(f"Workflow will start with agent {head_agent.get('agent_name')}")
+        workflow_progress = self._generate_workflow_progress(agents, registered_agents)
+        logger.info(f"🚀 Starting workflow:\n{workflow_progress}")
+        
+        logger.debug(f"Workflow will start with agent {head_agent.get('agent_name')}")
         await self.send_message(utils.Message(content=test_message, sender="Creator"), AgentId(head_agent.get('agent_name'), "default"))
 
         if all_errors:
@@ -268,6 +269,39 @@ class Creator(RoutedAgent):
             issues.append("Network operations detected - not allowed in generated agents")
         
         return issues
+    
+    def _generate_workflow_progress(self, agents: list, registered_agents: dict) -> str:
+        """Generate a visual representation of the workflow progress."""
+        if not agents:
+            return "No agents configured"
+        
+        workflow_chain = []
+        current_agent = agents[0]
+        
+        while current_agent:
+            agent_name = current_agent.get('agent_name', 'unknown')
+            status = "✓" if agent_name in registered_agents else "❌"
+            timeout = current_agent.get('timeout', 30)
+            has_tools = bool(current_agent.get('tools'))
+            
+            agent_info = f"[{status}] {agent_name}"
+            if has_tools:
+                tool_count = len(current_agent.get('tools', []))
+                agent_info += f" (🔧{tool_count} tools)"
+            agent_info += f" (⏱️{timeout}s)"
+            
+            workflow_chain.append(agent_info)
+            
+            output_to = current_agent.get('output_to')
+            if output_to:
+                next_agent = next((a for a in agents if a.get('agent_name') == output_to), None)
+                current_agent = next_agent
+            else:
+                current_agent = None
+        
+        workflow_chain.append("[⏳] End")
+        
+        return " → ".join(workflow_chain)
 
 
 

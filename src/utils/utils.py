@@ -30,6 +30,22 @@ def setup_logging(level: int = logging.INFO) -> None:
     handler = logging.StreamHandler()
     handler.setFormatter(ColorFormatter("%(asctime)s - %(name)s - %(message)s"))
     logging.basicConfig(level=level, handlers=[handler])
+    
+    autogen_loggers = [
+        "autogen_core",
+        "autogen_agentchat", 
+        "autogen_ext",
+        "autogen_ext.runtimes.grpc",
+        "autogen_ext.models.openai",
+        "autogen_ext.tools.mcp"
+    ]
+    
+    if level == logging.DEBUG:
+        for logger_name in autogen_loggers:
+            logging.getLogger(logger_name).setLevel(logging.DEBUG)
+    else:
+        for logger_name in autogen_loggers:
+            logging.getLogger(logger_name).setLevel(logging.WARNING)
 
 GEMINI_INFO = ModelInfo(
     family="gemini",
