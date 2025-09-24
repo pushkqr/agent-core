@@ -149,32 +149,12 @@ main.py → Creator → Start → [Generated Agents] → End
 3. **Generated Agents**: Execute the actual workflow tasks
 4. **End Agent**: Captures final results and signals completion
 
-**Creator Agent Process:**
-1. **Validates** YAML configuration and workflow structure
-2. **Generates** agent code from templates with security validation
-3. **Saves** generated agents to `generated/` directory with version tracking
-4. **Registers** agents with the AutoGen runtime with error handling
-5. **Sends** workflow specification to Start agent
+## 🤝 Contributing
 
-**Start Agent Process:**
-1. **Receives** workflow specification from Creator
-2. **Validates** workflow components and agent registration
-3. **Handles** input collection (interactive or test_message mode)
-4. **Initiates** workflow by sending message to head agent
-5. **Manages** error handling and workflow state
+Contributions are welcome! If you'd like to add features, fix bugs, or improve documentation, please open an issue or submit a pull request. For major changes, please discuss them in an issue first to ensure alignment with the project's direction.
 
-### Key Improvements
+## 📚 References & Acknowledgements
 
-- **Flexible Input Handling**: Support for both automated and interactive workflows
-- **Optimized Architecture**: Streamlined workflow with dedicated Start agent for input handling
-- **Error Resilience**: Agents gracefully handle tool failures and continue operation
-- **Enhanced Error Reporting**: Detailed error messages with context and debugging information
-- **Agent-Specific Timeouts**: Configurable timeouts per agent with detailed timeout reporting
-- **Security**: Basic validation prevents dangerous code execution in generated agents
-- **Performance**: Optimized module reloading, reduced redundant operations, and clean code
-- **Maintainability**: Clean code structure with shared base classes and type hints
-- **Configurability**: Environment-based configuration for timeouts and behavior
-- **State Management**: Proper cleanup prevents state pollution between runs
-- **LLM Optimization**: Start and End agents optimized to avoid unnecessary LLM calls
+- Built on top of [AutoGen Core](https://github.com/microsoft/autogen) and [AutoGen AgentChat](https://github.com/microsoft/autogen/tree/main/autogen/agentchat)
 
 
