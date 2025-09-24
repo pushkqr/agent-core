@@ -1,67 +1,57 @@
-from autogen_core import MessageContext, RoutedAgent, message_handler, AgentId
-from autogen_agentchat.agents import AssistantAgent
+from autogen_core import MessageContext, message_handler, AgentId
 from autogen_agentchat.messages import TextMessage
-from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_ext.tools.mcp import StdioServerParams, mcp_server_tools
+from src.templates.base_agent import BaseAgent
 from src.utils import utils
 import asyncio
-import os
-from dotenv import load_dotenv
 import logging
-from src.utils.utils import setup_logging
+import os
 
-setup_logging(logging.DEBUG)
 logger = logging.getLogger("main")
-
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-load_dotenv(override=True, dotenv_path=os.path.join(project_root, ".env"))
 
 TEMPLATE_VERSION = "1.0.0"
 
-class Agent(RoutedAgent):
+class Agent(BaseAgent):
     def __init__(self, name, system_message, spec) -> None:
-        super().__init__(name)
-        self._system_message = system_message
-        self._name = name
-        self.spec = spec or {}
-        self._tools_specs = spec["tools"] or []
+        super().__init__(name, system_message, spec)
+        self._tools_specs = spec.get("tools", []) or []
         self._delegate = None 
-        asyncio.get_event_loop().create_task(self.setup_tools())
-
 
     async def setup_tools(self):
-        """Initialize AssistantAgent with all tools resolved from MCP servers."""
-        model_client = OpenAIChatCompletionClient(
-            model=utils.MODEL_NAME,
-            model_info=utils.GEMINI_INFO,
-            api_key=os.getenv("GOOGLE_API_KEY")
-        )
+        try:
+            all_tools = []
+            for spec in self._tools_specs:
+                try:
+                    params = spec.get("params", {})
+                    
+                    if "env" in params:
+                        resolved_env = {}
+                        for key, value in params["env"].items():
+                            if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
+                                env_var = value[2:-1]
+                                resolved_env[key] = os.getenv(env_var)
+                                if resolved_env[key] is None:
+                                    logger.warning(f"Environment variable {env_var} not found for tool {spec.get('name', 'unknown')}")
+                            else:
+                                resolved_env[key] = value
+                        params["env"] = resolved_env
+                    
+                    server = StdioServerParams(**params)
+                    tools = await mcp_server_tools(server)
+                    all_tools.extend(tools)
+                    logger.info(f"Successfully loaded {len(tools)} tools from {spec.get('name', 'unknown')}")
+                    
+                except Exception as e:
+                    logger.error(f"Failed to load tools from {spec.get('name', 'unknown')}: {e}")
+                    continue
 
-        all_tools = []
-        for spec in self._tools_specs:
-            params = spec.get("params", {})
+            await self._setup_delegate(all_tools)
+            logger.info(f"Successfully initialized {self._name} with {len(all_tools)} tools")
             
-            if "env" in params:
-                resolved_env = {}
-                for key, value in params["env"].items():
-                    if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
-                        env_var = value[2:-1]
-                        resolved_env[key] = os.getenv(env_var)
-                    else:
-                        resolved_env[key] = value
-                params["env"] = resolved_env
-            
-            server = StdioServerParams(**params)
-            tools = await mcp_server_tools(server)
-            all_tools.extend(tools)
-
-        self._delegate = AssistantAgent(
-            self._name,
-            model_client=model_client,
-            system_message=self._system_message,
-            tools=all_tools,
-            reflect_on_tool_use=True
-        )
+        except Exception as e:
+            logger.error(f"Failed to setup tools for {self._name}: {e}")
+            await self._setup_delegate([])
+            logger.warning(f"Initialized {self._name} without tools due to setup failure")
 
     @message_handler
     async def handle_message(self, message: utils.Message, ctx: MessageContext) -> utils.Message:

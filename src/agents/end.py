@@ -5,7 +5,6 @@ from autogen_ext.models.openai import OpenAIChatCompletionClient
 from src.utils.prompts import Prompts
 from src.utils import utils
 import os
-from dotenv import load_dotenv
 import logging
 from src.utils.utils import setup_logging
 from workflow_state import workflow_state
@@ -13,9 +12,6 @@ import asyncio
 
 setup_logging(logging.DEBUG)
 logger = logging.getLogger("main")
-
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-load_dotenv(override=True, dotenv_path=os.path.join(project_root, ".env"))
 
 
 class End(RoutedAgent):

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from autogen_ext.models.openai._model_info import ModelInfo
 import logging
+from typing import Any
 
 @dataclass
 class Message:
@@ -18,14 +19,14 @@ class ColorFormatter(logging.Formatter):
     RESET = "\033[0m"
     
 
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         color = self.COLORS.get(record.levelname, "")
         prefix = f"[{record.levelname}]"
         msg = super().format(record)
         
         return f"{color}{prefix}{self.RESET} {msg}"
     
-def setup_logging(level=logging.INFO):
+def setup_logging(level: int = logging.INFO) -> None:
     handler = logging.StreamHandler()
     handler.setFormatter(ColorFormatter("%(asctime)s - %(name)s - %(message)s"))
     logging.basicConfig(level=level, handlers=[handler])

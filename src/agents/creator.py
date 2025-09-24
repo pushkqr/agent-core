@@ -2,7 +2,6 @@ import os
 import sys
 import importlib
 import logging
-from dotenv import load_dotenv
 from autogen_core import MessageContext, RoutedAgent, message_handler, TRACE_LOGGER_NAME, AgentId
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import TextMessage
@@ -12,8 +11,6 @@ from src.utils.utils import setup_logging
 import yaml
 import re
 from src.utils.prompts import Prompts
-
-load_dotenv(override=True)
 
 setup_logging(logging.DEBUG)
 logger = logging.getLogger("main")
@@ -105,6 +102,12 @@ class Creator(RoutedAgent):
 
                 generated_code = generated_code.strip()
                 
+                security_issues = Creator.validate_generated_code(generated_code)
+                if security_issues:
+                    logger.error(f"Generated code failed security validation: {security_issues}")
+                    await self.send_message(utils.Message(content=f"Security validation failed: {security_issues}", sender="Creator"), AgentId("End", "default"))
+                    return utils.Message(content="", sender="Creator")
+                
                 try:
                     compile(generated_code, filename, 'exec')
                 except SyntaxError as e:
@@ -120,7 +123,18 @@ class Creator(RoutedAgent):
 
             try:
                 if module_path in sys.modules:
-                    importlib.reload(sys.modules[module_path])
+                    module_file = sys.modules[module_path].__file__
+                    if module_file and os.path.exists(module_file):
+                        module_mtime = os.path.getmtime(module_file)
+                        current_mtime = os.path.getmtime(filename)
+                        if current_mtime > module_mtime:
+                            logger.info(f"File {filename} modified, reloading module {module_path}")
+                            importlib.reload(sys.modules[module_path])
+                        else:
+                            logger.debug(f"Module {module_path} is up to date, skipping reload")
+                    else:
+                        logger.info(f"Reloading module {module_path} (no file info)")
+                        importlib.reload(sys.modules[module_path])
                 module = importlib.import_module(module_path)
             except Exception as e:
                 logger.error(f"Failed to import/reload module {module_path}: {e}")
@@ -204,11 +218,56 @@ class Creator(RoutedAgent):
         existing_version = re.search(r'TEMPLATE_VERSION = "([^"]+)"', existing_content)
         current_version = re.search(r'TEMPLATE_VERSION = "([^"]+)"', template_content)
         
-        existing_version = existing_version.group(1) if existing_version else "unknown"
-        current_version = current_version.group(1) if current_version else "unknown"
+        if not current_version:
+            logger.warning(f"Template {template_file} missing TEMPLATE_VERSION, forcing regeneration")
+            return True
         
-        return existing_version != current_version
+        if not existing_version:
+            logger.info(f"Existing file {filename} missing TEMPLATE_VERSION, regenerating")
+            return True
+        
+        existing_version = existing_version.group(1)
+        current_version = current_version.group(1)
+        
+        should_regenerate = existing_version != current_version
+        if should_regenerate:
+            logger.info(f"Template version mismatch: {existing_version} -> {current_version}, regenerating")
+        
+        return should_regenerate
     
+    @staticmethod
+    def validate_generated_code(code: str) -> list[str]:
+        """Basic security validation for generated code. Returns list of security issues."""
+        issues = []
+        
+        dangerous_imports = [
+            'os.system', 'subprocess', 'eval', 'exec', 'compile',
+            '__import__', 'open', 'file', 'input', 'raw_input',
+            'socket', 'urllib', 'requests', 'http', 'ftplib'
+        ]
+        
+        dangerous_patterns = [
+            r'os\.system\s*\(', r'subprocess\s*\.', r'eval\s*\(', r'exec\s*\(',
+            r'__import__\s*\(', r'compile\s*\(', r'open\s*\(', r'file\s*\(',
+            r'input\s*\(', r'raw_input\s*\(', r'socket\s*\.', r'urllib\s*\.',
+            r'requests\s*\.', r'http\s*\.', r'ftplib\s*\.'
+        ]
+        
+        for dangerous_import in dangerous_imports:
+            if dangerous_import in code:
+                issues.append(f"Dangerous import detected: {dangerous_import}")
+        
+        for pattern in dangerous_patterns:
+            if re.search(pattern, code, re.IGNORECASE):
+                issues.append(f"Dangerous operation detected: {pattern}")
+        
+        if re.search(r'open\s*\([^)]*["\']\.\./', code):
+            issues.append("Attempt to access files outside generated directory")
+        
+        if re.search(r'(socket|urllib|requests|http|ftplib)', code, re.IGNORECASE):
+            issues.append("Network operations detected - not allowed in generated agents")
+        
+        return issues
 
 
 
